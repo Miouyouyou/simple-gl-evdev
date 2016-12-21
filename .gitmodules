@@ -1,0 +1,3 @@
+[submodule "apk"]
+	path = apk
+	url = https://github.com/Miouyouyou/MyyOpenGLHelpers-example-apk.git
