@@ -1,3 +1,7 @@
 [submodule "apk"]
 	path = apk
 	url = https://github.com/Miouyouyou/MyyOpenGLHelpers-example-apk.git
+
+[submodule "myy"]
+	path = myy
+	url = https://github.com/Miouyouyou/MyyOpenGLHelpers.git
