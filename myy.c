@@ -22,6 +22,7 @@ struct glyph_infos myy_glyph_infos = {
 enum attributes { attr_xyz, attr_st, n_attrs };
 enum { texid_font, n_textures };
 GLuint textures_id[n_textures];
+GLuint offset_uniform;
 
 void myy_init() {}
 
@@ -48,8 +49,8 @@ struct US_normalised_xy {
 struct US_normalised_xy normalise_coordinates
 (int const width_px, int const height_px) {
 	struct US_normalised_xy normalised_dimensions = {
-		.x  = (width_px/640.0f)*32767,
-		.y = (height_px/360.0f)*32767
+		.x  = (width_px/960.0f)*32767,
+		.y = (height_px/540.0f)*32767
 	};
 
 	return normalised_dimensions;
@@ -64,7 +65,7 @@ int16_t myy_copy_glyph
 	struct myy_packed_fonts_codepoints const * __restrict const codepoints =
 	  glyph_infos->codepoints_addr;
 
-	LOG("[myy_copy_glyph]\n");
+	//LOG("[myy_copy_glyph]\n");
 	unsigned int codepoint_index =
 	  find_codepoint_in(codepoints, codepoint);
 	if (codepoint_index) {
@@ -93,9 +94,9 @@ int16_t myy_copy_glyph
 		  tex_up    = glyphdata->tex_top,
 		  tex_down  = glyphdata->tex_bottom;
 
-		LOG("  %d↓\n"
+		/*LOG("  %d↓\n"
 		    " Tex: left: %d, right : %d, bottom: %d, top: %d\n",
-		    codepoint, tex_left, tex_right, tex_down, tex_up);
+		    codepoint, tex_left, tex_right, tex_down, tex_up);*/
 
 		quad->points[upleft_corner].s = tex_left;
 		quad->points[upleft_corner].t = tex_up;
@@ -149,6 +150,8 @@ static void prepare_string
 
 }
 
+uint32_t string[] = L"Mon super hamster fait du Taekwondo ! Sérieux !";
+uint32_t string_size = sizeof(string)/sizeof(uint32_t);
 US_two_tris_quad_3D quads[90];
 
 void myy_init_drawing() {
@@ -162,18 +165,27 @@ void myy_init_drawing() {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glUniform1i(glGetUniformLocation(program, "st"), GL_TEXTURE0);
+	offset_uniform = glGetUniformLocation(program, "offset_uniform");
 
 	myy_parse_packed_fonts(&myy_glyph_infos, "data/codepoints.dat");
 	/*myy_copy_glyph(&myy_glyph_infos, L'a', quads, 0);
 	myy_copy_glyph(&myy_glyph_infos, L'p', quads+1, 12*51);*/
-	prepare_string(&myy_glyph_infos, L"add r0, r1", 10, quads);
+	prepare_string(&myy_glyph_infos, string, string_size, quads);
 
 }
 
+static struct mouse_cursor_position { 
+	int x, y;
+	float glx, gly;
+} 
+cursor = {0,0};
+
 void myy_draw() {
+
 	glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT );
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
+	glUniform2f(offset_uniform, cursor.glx, cursor.gly);
 	glVertexAttribPointer(attr_xyz, 3, GL_SHORT, GL_TRUE,
 	                      sizeof(struct US_textured_point_3D),
 	                      (uint8_t *)
@@ -183,7 +195,30 @@ void myy_draw() {
 	                      (uint8_t *)
 	                      (quads)+offsetof(struct US_textured_point_3D, s));
 
-	glDrawArrays(GL_TRIANGLES, 0, 6 * 10);
+	glDrawArrays(GL_TRIANGLES, 0, 6 * string_size);
+}
+
+void myy_abs_mouse_move(int x, int y) {
+	int 
+  		current_x = cursor.x, 
+		new_x = current_x + x;
+	new_x >>= ((new_x < 0) << 5);
+	new_x = (new_x < 1920 ? new_x : 1920);
+
+	int
+		current_y = cursor.y,
+		new_y = current_y + y;
+        new_y >>= ((new_y < 0) << 5);
+	new_y = (new_y < 1080 ? new_y : 1080);
+
+	cursor.x = new_x;
+	cursor.y = new_y;
+	cursor.glx = (new_x / 960.0f) - 1.0f;
+	cursor.gly = (new_y / 540.0f) - 1.0f;
+}
+
+void myy_mouse_action(enum mouse_action_type type, int value) {
+	LOG("Wheely ! : %d\n", value);
 }
 
 void myy_save_state(struct myy_game_state * const state) {}

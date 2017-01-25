@@ -20,7 +20,7 @@ set(MyyFoldersToCopy
     shaders
     textures
     data)
-    
+
 if (MYY_ANDROID)
 	find_library(Freetype REQUIRED)
 else (MYY_ANDROID)
@@ -45,18 +45,18 @@ add_custom_target(Data     SOURCES ${MyyData})
 include_directories(. myy)
 
 # Common Section
-set (MyyCoreFiles 
+set (MyyCoreFiles
      myy.c
      myy/helpers/base_gl.c
      myy/helpers/myy_strings.c)
 set (MyyLinuxHelpers
      myy/platforms/linux/common/helpers/file.c
      myy/platforms/linux/common/helpers/browser.c)
-set (MyyPlatformsDir 
+set (MyyPlatformsDir
      myy/platforms)
 
-set (MyyCoreHeaders 
-     myy/myy.h 
+set (MyyCoreHeaders
+     myy/myy.h
      myy/helpers/base_gl.h
      myy/helpers/file.h myy/helpers/log.h
      myy/helpers/string.h myy/helpers/struct.h)
@@ -76,7 +76,7 @@ if (MYY_X11 OR MYY_DRM)
 		    myy/platforms/linux/X11/init_window.c
 		    myy/platforms/linux/X11/main.c)
 
-		add_executable(Program 
+		add_executable(Program
 		              ${MyyCoreFiles}
 		              ${MyyLinuxHelpers}
 		              ${MyyX11Sources}
@@ -87,24 +87,27 @@ if (MYY_X11 OR MYY_DRM)
 		                      X11
 		                      ${MyyProjectLibDeps})
 	endif (MYY_X11)
-	
+
 	if (MYY_DRM)
 		find_package(PkgConfig REQUIRED)
 		pkg_search_module(DRM REQUIRED libdrm)
 		pkg_search_module(GBM REQUIRED gbm)
+		pkg_search_module(EVDEV REQUIRED libevdev)
 		set(MyyDRMSources
-		    myy/platforms/linux/DRM/main.c)
-		include_directories(${DRM_INCLUDE_DIRS} ${GBM_INCLUDE_DIRS})
+		    myy/platforms/linux/DRM/main.c
+		    myy/platforms/linux/DRM/evdev.c)
+		include_directories(${DRM_INCLUDE_DIRS} ${GBM_INCLUDE_DIRS} ${EVDEV_INCLUDE_DIRS})
 		add_executable(Program
 		               ${MyyCoreFiles}
-		               ${MyyLinuxHelpers} 
+		               ${MyyLinuxHelpers}
 		               ${MyyDRMSources}
 		               ${MyyProjectSources})
-		target_link_libraries(Program 
+		target_link_libraries(Program
 		                      GLESv2
 		                      EGL
 		                      ${DRM_LIBRARIES}
 		                      ${GBM_LIBRARIES}
+		                      ${EVDEV_LIBRARIES}
 		                      ${MyyProjectLibDeps})
 	endif (MYY_DRM)
 endif (MYY_X11 OR MYY_DRM)
@@ -115,20 +118,20 @@ endif (MYY_X11 OR MYY_DRM)
 if (MYY_ANDROID)
 	set(CMAKE_SYSTEM_NAME Android)
 
-	# The variable ANDROID_ASSETS_DIRECTORIES is not passed nor set 
-	# automatically... 
+	# The variable ANDROID_ASSETS_DIRECTORIES is not passed nor set
+	# automatically...
 	# Android will NOT provide this information directly (or at least not
-	# in a documented way !), even though IT IS ESSENTIAL ! You have to 
+	# in a documented way !), even though IT IS ESSENTIAL ! You have to
 	# pass it MANUALLY through the Gradle script file using :
 	#
 	# cmake {
-	#   arguments ..., 
+	#   arguments ...,
 	#             "-DANDROID_ASSETS_DIRECTORIES='${sourceSets.main.assets.srcDirs}'"
 	# }
 	#
 	# ♪ "Thank" you Android ♪
 
-	# I'm afraid that this make the Android build system copy the same 
+	# I'm afraid that this make the Android build system copy the same
 	# folder n times, 'n' being the number of targeted architectures API
 	# (e.g. : If this is built for 'x86', 'arm7a' and 'mips' -> n = 3)
 
@@ -138,7 +141,7 @@ if (MYY_ANDROID)
 	# message(STATUS "FIRST DIR : ${first-android-assets-dir}")
 	# message(STATUS "ANDROID ASSETS DIRECTORY : ${ANDROID_ASSETS_DIRECTORIES}")
 
-	set(MyyAndroidSources 
+	set(MyyAndroidSources
 	    myy/platforms/android/android_dummy_main.c
 	    myy/platforms/android/android_native_app_glue.c
 	    myy/platforms/android/helpers/android_file.c)

@@ -23,7 +23,7 @@ static void print_stored_codepoints_infos
 		current_codepoint = codepoints[i].codepoint;
 		utf32_to_utf8_string(current_codepoint, converted_codepoint);
 		current_glyph = glyphs+i;
-		LOG("  %s (%d) ↓\n"
+		/*LOG("  %s (%d) ↓\n"
 		    "  Tex: left: %d, right: %d, bottom: %d, top: %d\n"
 		    "  Off: x: %dpx, y: %dpx\n"
 		    "  Siz: width: %d px, height: %d px\n",
@@ -32,7 +32,7 @@ static void print_stored_codepoints_infos
 		    current_glyph->tex_bottom,  current_glyph->tex_top,
 		    current_glyph->offset_x_px, current_glyph->offset_y_px,
 		    current_glyph->width_px,    current_glyph->height_px
-		);
+		);*/
 	}
 }
 
@@ -45,7 +45,7 @@ void myy_parse_packed_fonts
 	  filename, (uint8_t *) &header, sizeof(header), 0
 	);
 
-	LOG("[myy_parse_packed_fonts]\n"
+	/*LOG("[myy_parse_packed_fonts]\n"
 	    "  filename                   : %s\n"
 	    "  Codepoints stored          : %d\n"
 	    "  Codepoints starting offset : %d\n"
@@ -58,7 +58,7 @@ void myy_parse_packed_fonts
 	    header.glyphdata_start_offset,
 	    header.font_filename_size,
 	    header.font_filename
-	);
+	);*/
 
 	fh_ReadBytesFromFile(
 	  filename, (uint8_t *) glyph_infos->codepoints_addr,
