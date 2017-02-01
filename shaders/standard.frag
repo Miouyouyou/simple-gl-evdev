@@ -1,8 +1,8 @@
-#version 300 es
+#version 310 es
 
 precision highp float;
 
-uniform sampler2D sampler;
+layout(location = 0) uniform sampler2D sampler;
 
 out vec4 fragmentColor;
 

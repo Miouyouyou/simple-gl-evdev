@@ -1,7 +1,7 @@
-#include <GLES3/gl3.h>
-#include <helpers/base_gl.h>
-#include <helpers/struct.h>
-#include <helpers/log.h>
+#include <src/helpers/opengl/loaders.h>
+#include <src/helpers/opengl/quads_structures.h>
+#include <myy/helpers/struct.h>
+#include <myy/helpers/log.h>
 
 #include <myy.h>
 
@@ -9,9 +9,34 @@
 
 #include <packed_fonts_parser.h>
 
+struct glsl_programs_shared_data glsl_shared_data = {
+	.strings = {
+	  "shaders/standard.vert\0shaders/standard.frag\0"
+	  "shaders/cursor_shader.vsh\0shaders/cursor_shader.fsh\0"
+	},
+	.shaders = {
+	  [text_vsh] = {
+	    .type = GL_VERTEX_SHADER,
+	    .str_pos = 0,
+	  },
+	  [text_fsh] = {
+	    .type = GL_FRAGMENT_SHADER,
+	    .str_pos = 22,
+	  },
+	  [cursor_vsh] = {
+	    .type = GL_VERTEX_SHADER,
+	    .str_pos = 44,
+	  },
+	  [cursor_fsh] = {
+	    .type = GL_FRAGMENT_SHADER,
+	    .str_pos = 70
+	  }
+	}
+};
+
 #define MANAGED_CODEPOINTS 512
 struct myy_packed_fonts_codepoints codepoints[MANAGED_CODEPOINTS] = {0};
-struct myy_packed_fonts_glyphdata glyphdata[MANAGED_CODEPOINTS] = {0};
+struct myy_packed_fonts_glyphdata   glyphdata[MANAGED_CODEPOINTS] = {0};
 
 struct glyph_infos myy_glyph_infos = {
 	.stored_codepoints = 0,
@@ -20,8 +45,13 @@ struct glyph_infos myy_glyph_infos = {
 };
 
 enum attributes { attr_xyz, attr_st, n_attrs };
-enum { texid_font, n_textures };
-GLuint textures_id[n_textures];
+enum uniforms { unif_st, unif_offset, n_uniforms };
+enum myy_current_textures_id {
+	myy_characters_tex,
+	myy_cursor_tex,
+	n_textures_id
+};
+GLuint textures_id[n_textures_id];
 GLuint offset_uniform;
 
 void myy_init() {}
@@ -150,23 +180,24 @@ static void prepare_string
 
 }
 
-uint32_t string[] = L"Mon super hamster fait du Taekwondo ! Sérieux !";
+int string[] = L"Mon super hamster fait du Taekwondo ! Sérieux !";
 uint32_t string_size = sizeof(string)/sizeof(uint32_t);
 US_two_tris_quad_3D quads[90];
 
 void myy_init_drawing() {
-	GLuint program =
-	  glhSetupAndUse("shaders/standard.vert", "shaders/standard.frag",
-	                 n_attrs /* attributes */, "xyz\0in_st\0");
-	glhUploadTextures("textures/super_bitmap.raw", n_textures,
-	                  textures_id);
+	glhBuildAndSaveSimpleProgram(
+	  &glsl_shared_data, text_vsh, text_fsh, glsl_text_program
+	);
+	glhUploadMyyRawTextures(
+	  "textures/super_bitmap.raw\0"
+	  "textures/cursor.raw",
+	  n_textures_id, textures_id
+	);
+	glhActiveTextures(textures_id, 2);
 	glEnableVertexAttribArray(attr_xyz);
 	glEnableVertexAttribArray(attr_st);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glUniform1i(glGetUniformLocation(program, "st"), GL_TEXTURE0);
-	offset_uniform = glGetUniformLocation(program, "offset_uniform");
-
 	myy_parse_packed_fonts(&myy_glyph_infos, "data/codepoints.dat");
 	/*myy_copy_glyph(&myy_glyph_infos, L'a', quads, 0);
 	myy_copy_glyph(&myy_glyph_infos, L'p', quads+1, 12*51);*/
@@ -176,16 +207,41 @@ void myy_init_drawing() {
 
 static struct mouse_cursor_position { 
 	int x, y;
-	float glx, gly;
 } 
-cursor = {0,0};
+cursor = {200,200};
+
+struct textured_point_3D cursor_icon[4] = {
+  {.x = 0.025f, .y = 0, .z = 0.2f, .s = 1.0f, .t = 1.0f},
+	{.x = 0, .y = 0, .z = 0.2f, .s = 0.0f, .t = 1.0f},
+	{.x = 0, .y = -0.04444f, .z = 0.2f, .s = 0.0f, .t = 0.0f},
+	{.x = 0.025f, .y = -0.04444f, .z = 0.2f, .s = 1.0f, .t = 0.0f}
+};
+
+struct normalised_float_coords {
+	GLfloat x, y;
+};
+
+struct normalised_float_coords normalise_float_coords
+(int const x, int const y)
+{
+	/* 960.0f and 540.0f are half 1080p dimensions... Still, random
+	 * values coming from nowhere should be removed soon enough. */
+	struct normalised_float_coords result = {
+		.x = (x / 960.0f) - 1.0f,
+		.y = (y / 540.0f) - 1.0f
+	};
+	return result;
+}
 
 void myy_draw() {
 
 	glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT );
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-	glUniform2f(offset_uniform, cursor.glx, cursor.gly);
+	GLuint const * const programs = glsl_shared_data.programs;
+	glUseProgram(programs[glsl_text_program]);
+	glUniform2f(unif_offset, 0.0f, 0.0f);
+	glUniform1i(unif_st, myy_characters_tex);
 	glVertexAttribPointer(attr_xyz, 3, GL_SHORT, GL_TRUE,
 	                      sizeof(struct US_textured_point_3D),
 	                      (uint8_t *)
@@ -194,27 +250,40 @@ void myy_draw() {
 	                      sizeof(struct US_textured_point_3D),
 	                      (uint8_t *)
 	                      (quads)+offsetof(struct US_textured_point_3D, s));
-
 	glDrawArrays(GL_TRIANGLES, 0, 6 * string_size);
+	struct normalised_float_coords cursor_coords =
+	  normalise_float_coords(cursor.x, cursor.y);
+	glUniform2f(unif_offset, cursor_coords.x, cursor_coords.y);
+	glUniform1i(unif_st, myy_cursor_tex);
+	glVertexAttribPointer(attr_xyz, 3, GL_FLOAT, GL_FALSE,
+	                      sizeof(struct textured_point_3D),
+	                      (uint8_t *)
+	                      (cursor_icon)+offsetof(struct textured_point_3D, x));
+	glVertexAttribPointer(attr_st, 2, GL_FLOAT, GL_FALSE,
+	                      sizeof(struct textured_point_3D),
+	                      (uint8_t *)
+	                      (cursor_icon)+offsetof(struct textured_point_3D, s));
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
 
 void myy_abs_mouse_move(int x, int y) {
 	int 
-  		current_x = cursor.x, 
+	  current_x = cursor.x,
 		new_x = current_x + x;
+
 	new_x >>= ((new_x < 0) << 5);
 	new_x = (new_x < 1920 ? new_x : 1920);
 
 	int
 		current_y = cursor.y,
 		new_y = current_y + y;
-        new_y >>= ((new_y < 0) << 5);
+
+	new_y >>= ((new_y < 0) << 5);
 	new_y = (new_y < 1080 ? new_y : 1080);
 
 	cursor.x = new_x;
 	cursor.y = new_y;
-	cursor.glx = (new_x / 960.0f) - 1.0f;
-	cursor.gly = (new_y / 540.0f) - 1.0f;
+
 }
 
 void myy_mouse_action(enum mouse_action_type type, int value) {

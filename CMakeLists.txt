@@ -14,7 +14,13 @@ set (MyyMakeTests_VERSION_MAJOR 1)
 set (MyyMakeTests_VERSION_MINOR 0)
 
 set(MyyProjectSources
+	  src/helpers/opengl/loaders.c
     packed_fonts_parser.c)
+
+set(MyyProjectHeaders
+	  src/helpers/opengl/loaders.h
+		src/helpers/opengl/quads_structures.h
+		src/generated/data_config.h)
 
 set(MyyFoldersToCopy
     shaders
@@ -41,13 +47,13 @@ set(MyyTextures
 add_custom_target(Shaders  SOURCES ${MyyShaders})
 add_custom_target(Textures SOURCES ${MyyTextures})
 add_custom_target(Data     SOURCES ${MyyData})
+add_custom_target(Headers  SOURCES ${MyyProjectHeaders})
 
 include_directories(. myy)
 
 # Common Section
 set (MyyCoreFiles
      myy.c
-     myy/helpers/base_gl.c
      myy/helpers/myy_strings.c)
 set (MyyLinuxHelpers
      myy/platforms/linux/common/helpers/file.c
@@ -57,9 +63,12 @@ set (MyyPlatformsDir
 
 set (MyyCoreHeaders
      myy/myy.h
-     myy/helpers/base_gl.h
-     myy/helpers/file.h myy/helpers/log.h
-     myy/helpers/string.h myy/helpers/struct.h)
+		 myy/current/opengl.h
+		 myy/egl_common/myy_eglattrs.h
+		 myy/helpers/file.h
+		 myy/helpers/log.h
+		 myy/helpers/string.h
+		 myy/helpers/struct.h)
 
 add_custom_target(MyyHeaders  SOURCES ${MyyCoreHeaders})
 
