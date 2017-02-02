@@ -44,10 +44,13 @@ set(MyyData
 set(MyyTextures
     textures/fonts.raw
     textures/super_bitmap.raw)
+set(MyyDocumentation
+	  README.md)
 add_custom_target(Shaders  SOURCES ${MyyShaders})
 add_custom_target(Textures SOURCES ${MyyTextures})
 add_custom_target(Data     SOURCES ${MyyData})
 add_custom_target(Headers  SOURCES ${MyyProjectHeaders})
+add_custom_target(Documentation SOURCES ${MyyDocumentation})
 
 include_directories(. myy)
 
