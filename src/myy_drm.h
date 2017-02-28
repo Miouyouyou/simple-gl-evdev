@@ -30,8 +30,6 @@
 
 #include <current/opengl.h>
 
-#define GL_GLEXT_PROTOTYPES 1
-
 struct egl_infos {
 	EGLDisplay display;
 	EGLConfig config;

@@ -1,6 +1,10 @@
 #ifndef MYY_CURRENT_OPENGL
 #define MYY_CURRENT_OPENGL 1
 
+/* You need to define a macro to get function prototypes...
+	 Everything's fine... */
+#define GL_GLEXT_PROTOTYPES 1
+
 #include <GLES2/gl2.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
