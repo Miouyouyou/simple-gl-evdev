@@ -1,68 +1,51 @@
+# Tipping
+
+[![Pledgie !](https://pledgie.com/campaigns/32702.png)](https://pledgie.com/campaigns/32702)
+[![Tip with Altcoins](https://raw.githubusercontent.com/Miouyouyou/Shapeshift-Tip-button/9e13666e9d0ecc68982fdfdf3625cd24dd2fb789/Tip-with-altcoin.png)](https://shapeshift.io/shifty.html?destination=16zwQUkG29D49G6C7pzch18HjfJqMXFNrW&output=BTC)
+
 # About
 
-This is an example showing how to integrate
-[MyyOpenGLHelpers](https://github.com/Miouyouyou/MyyOpenGLHelpers) with
-[CMake](http://cmake.org).
+A not-so-small example showing how to use DRM (KMS), OpenGL ES 2 and 
+Evdev to control a software cursor. 
 
-The [CMakeLists.txt](./CMakeLists.txt) is handcrafted and should be
-rather easy to understand and customise to various needs.
+The point is to show how to capture input with Evdev, and show the 
+results in an DRM-driven OpenGL application.
 
-Note that the Android build is handled automatically through the apk
-folder. See the [README in the apk folder](./apk) for informations about
-how to build and run the the Android version, and the requirements for
-these operations.
+Software cursors are inherently bad, as they're limited by the current
+application refresh rate, but are still nice when it comes to show 
+input feedback.
 
 # Requirements
 
-## Common requirements
+- CMake
+- DRM (kernel drivers, libraries and development headers)
+- Evdev (kernel drivers, libraries and development headers)
+- GBM (libraries and development headers)
+- OpenGL ES 2.x (drivers, libraries and development headers)
+- A user that has the rights to read raw input data from Mouse input 
+  node.
 
-To build this example, you will need, at least:
+# Build
 
-* CMake version 2.8 or higher
-* OpenGL ES 3.1 headers
-* OpenGL ES 3.1 libraries (e.g. : libGLESv2 on \*Nix systems)
-* EGL headers and libraries
-
-# Building
-
-## X11 variant
-
-To build the X11 variant, you will also need:
-
-* X11 libraries and headers if you want to compile the X11 variant
-
-Clone this repository somewhere and then do:
-
+To build this project, do something like :
 ```bash
 cd /tmp
-mkdir build_dir
-cd build_dir
-cmake /path/to/the/cloned/MyyOpenGLHelpers-example-cmake -DMYY_X11=ON
+git clone https://gitlab.com/Miouyouyou/simple-gl-evdev
+mkdir build-glev
+cmake ../simple-gl-evdev
 make
 ```
 
-## DRM variant
+You can then run `./Program` to run the program. If the program 
+complains about a missing mouse, check that a mouse is clearly plugged
+in and that your user can read raw input data, from the /dev/input/ node 
+representing your mouse.
+You can also run the program as root, but this is ill-advised.
 
-To build the DRM variant, you will also need:
+# Thanks to
 
-* Generic Buffer Management (GBM) libraries and headers
-* Direct Rendering Manager (DRM) libraries, headers, kernel drivers
-  and OpenGL drivers
+- @Robclark for [kmscube](https://github.com/robclark/kmscube)
 
-```bash
-cd /tmp
-mkdir build_dir
-cd build_dir
-cmake /path/to/the/cloned/MyyOpenGLHelpers-example-cmake -DMYY_DRM=ON
-make
-```
+# License
 
-## Android variant
-
-To build the Android variant, see the README.md in the
-[Android folder](./apk)
-
-# Running
-
-Run `Program` when the build finishes.
-
+MIT

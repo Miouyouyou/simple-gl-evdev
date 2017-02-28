@@ -1,42 +1,33 @@
 #ifndef MYY_SRC_HELPERS_OPENGL_LOADERS
 #define MYY_SRC_HELPERS_OPENGL_LOADERS 1
 
-#include <myy/current/opengl.h>
-#include <src/generated/data_config.h>
+#include <current/opengl.h>
 #include <stdint.h>
 
-int glhLoadShader
-(GLenum const shaderType, char const * __restrict const name,
- GLuint const program);
-
-unsigned int glhCompileProgram
-(struct glsl_programs_shared_data const * __restrict const metadata,
- unsigned int const n_shaders,
- enum glsl_shader_name const * __restrict const shaders);
-
-unsigned int glhLinkAndSaveProgram
-(struct glsl_programs_shared_data * __restrict const metadata,
- enum glsl_program_name const program_index,
- GLuint const p);
-
-unsigned int glhBuildAndSaveProgram
-(struct glsl_programs_shared_data * __restrict const metadata,
- unsigned int const n_shaders,
- enum glsl_shader_name const * __restrict const shaders,
- enum glsl_program_name const program_index);
-
-unsigned int glhBuildAndSaveSimpleProgram
-(struct glsl_programs_shared_data * __restrict const metadata,
- enum glsl_shader_name vertex_shader,
- enum glsl_shader_name fragment_shader,
- enum glsl_program_name const program_index);
-
+/**
+ * Compile a simple program, set the provided attributes locations
+ * sequentially and link the program.
+ *
+ * PARAMS :
+ * @param vsh_filename The Vertex Shader file's path
+ * @param fsh_filename The Fragment Shader file's path
+ * @param n_attributes The number of attributes locations to set
+ * @param attributes_names The attributes names to set the location of,
+ *                         sequentially, starting from 0
+ *
+ * RETURNS :
+ * @return A non-0 program ID if all the steps were successful.
+ *         0 otherwise.
+ */
 GLuint glhSetupProgram
 (char const * __restrict const vsh_filename,
  char const * __restrict const fsh_filename,
  uint8_t const n_attributes,
  char const * __restrict const attributes_names);
 
+/**
+ * A combination of glhSetupProgram and glUseProgram.
+ * See glhSetupProgram */
 GLuint glhSetupAndUse
 (char const * __restrict const vsh_filename,
  char const * __restrict const fsh_filename,

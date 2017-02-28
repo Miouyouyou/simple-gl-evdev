@@ -1,10 +1,31 @@
-/* This depends on a generated file */
+/*
+	Copyright (c) 2017 Miouyouyou <Myy>
+
+	Permission is hereby granted, free of charge, to any person obtaining
+	a copy of this software and associated documentation files
+	(the "Software"), to deal in the Software without restriction,
+	including without limitation the rights to use, copy, modify, merge,
+	publish, distribute, sublicense, and/or sell copies of the Software,
+	and to permit persons to whom the Software is furnished to do so,
+	subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be
+	included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+	EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+	MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+	IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+	CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+	TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+	SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
 
 #include <stdint.h>
-#include <src/helpers/opengl/loaders.h>
-#include <myy/helpers/file.h>
-#include <myy/helpers/log.h>
-#include <myy/helpers/string.h>
+#include <helpers/gl_loaders.h>
+#include <helpers/file.h>
+#include <helpers/log.h>
+#include <helpers/string.h>
 
 /* TODO : Replace exit by an "implementation-defined" panic function */
 /* exit */
@@ -53,7 +74,7 @@ static int check_if_ok
 	return GL_FALSE;
 }
 
-int glhLoadShader
+static int glhLoadShader
 (GLenum const shaderType,
  char const * __restrict const pathname,
  GLuint const program)
@@ -86,70 +107,21 @@ int glhLoadShader
   return ok;
 }
 
-unsigned int glhCompileProgram
-(struct glsl_programs_shared_data const * __restrict const metadata,
- unsigned int const n_shaders,
- enum glsl_shader_name const * __restrict const shaders)
-{
-	GLuint p = glCreateProgram();
-	GLuint ok = 1;
-	for (unsigned int s = 0; s < n_shaders; s++) {
-		enum glsl_shader_name shader_index = shaders[s];
-		struct glsl_shader const shader = metadata->shaders[shader_index];
-
-		GLchar const * const shader_filepath =
-			(GLchar const *) metadata->strings+shader.str_pos;
-		ok &= (glhLoadShader(shader.type, shader_filepath, p) != 0);
-		LOG("Status after loading %s --- %d\n",
-		    shader_filepath, ok);
-	}
-
-	GLuint ret = 0;
-	if (ok) ret = p;
-	else LOG("A problem occured during the creation of the program...\n");
-
-	return ret;
-}
-
-unsigned int glhLinkAndSaveProgram
-(struct glsl_programs_shared_data * __restrict const metadata,
- enum glsl_program_name const program_index,
- GLuint const p)
-{
-	unsigned int ret = 0;
-	if (p) {
-		glLinkProgram(p);
-		if (check_if_ok(p, GL_PROGRAM_PROBLEMS)) {
-			metadata->programs[program_index] = p;
-			ret = 1;
-		}
-		else LOG("An error occured during the linking phase...\n");
-	}
-	else LOG("Invalid program !\n");
-	return ret;
-}
-
-unsigned int glhBuildAndSaveProgram
-(struct glsl_programs_shared_data * __restrict const metadata,
- unsigned int const n_shaders,
- enum glsl_shader_name const * __restrict const shaders,
- enum glsl_program_name const program_index)
-{
-	GLuint program = glhCompileProgram(metadata, n_shaders, shaders);
-	glhLinkAndSaveProgram(metadata, program_index, program);
-	return program;
-}
-
-unsigned int glhBuildAndSaveSimpleProgram
-(struct glsl_programs_shared_data * __restrict const metadata,
- enum glsl_shader_name vertex_shader,
- enum glsl_shader_name fragment_shader,
- enum glsl_program_name const program_index)
-{
-	enum glsl_shader_name shaders[2] = {vertex_shader, fragment_shader};
-	return glhBuildAndSaveProgram(metadata, 2, shaders, program_index);
-}
-
+/**
+ * Compile a simple program, set the provided attributes locations
+ * sequentially and link the program.
+ *
+ * PARAMS :
+ * @param vsh_filename The Vertex Shader file's path
+ * @param fsh_filename The Fragment Shader file's path
+ * @param n_attributes The number of attributes locations to set
+ * @param attributes_names The attributes names to set the location of,
+ *                         sequentially, starting from 0
+ *
+ * RETURNS :
+ * @return A non-0 program ID if all the steps were successful.
+ *         0 otherwise.
+ */
 GLuint glhSetupProgram
 (char const * __restrict const vsh_filename,
  char const * __restrict const fsh_filename,
@@ -178,6 +150,9 @@ GLuint glhSetupProgram
 
 }
 
+/**
+ * A combination of glhSetupProgram and glUseProgram.
+ * See glhSetupProgram */
 GLuint glhSetupAndUse
 (char const * __restrict const vsh_filename,
  char const * __restrict const fsh_filename,
@@ -189,8 +164,6 @@ GLuint glhSetupAndUse
 	glUseProgram(p);
 	return p;
 }
-
-
 
 /* TODO : This must be customised */
 static void setupTexture()
