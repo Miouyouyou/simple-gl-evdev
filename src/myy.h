@@ -26,6 +26,11 @@
 
 #include <stdint.h>
 
+enum glsl_programs { glsl_cursor_program, glsl_text_program, n_glsl_programs };
+enum glsl_textures { glsl_cursor_texture, n_glsl_textures };
+enum glsl_buffers  { glsl_cursor_buffer,  n_glsl_buffers  };
+enum glsl_cursor_program_attribs { glsl_cursor_attr_xyst };
+
 void myy_display_initialised(unsigned int width, unsigned int height);
 void myy_init_drawing();
 void myy_draw();

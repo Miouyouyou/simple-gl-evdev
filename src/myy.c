@@ -28,14 +28,12 @@
 #include <stddef.h>
 
 // ------ GLSL Data
-enum glsl_programs { glsl_cursor_program, n_glsl_programs };
-enum glsl_textures { glsl_cursor_texture, n_glsl_textures };
-enum glsl_buffers  { glsl_cursor_buffer,  n_glsl_buffers  };
-enum glsl_cursor_program_attribs { glsl_cursor_attr_xyst };
+
 GLuint glsl_programs[n_glsl_programs] = {0};
 GLuint glsl_textures[n_glsl_textures] = {0};
 GLuint glsl_buffers[n_glsl_buffers]   = {0};
 
+// ------ Cursor variables
 enum glsl_cursor_program_uniforms { 
 	glsl_cursor_unif_tex,
 	glsl_cursor_unif_norm,
@@ -44,49 +42,67 @@ enum glsl_cursor_program_uniforms {
 };
 GLuint glsl_cursor_uniforms[n_glsl_cursor_uniforms] = {0};
 
-// ------ Cursor variables
-static struct mouse_cursor_position {	int x, y; } cursor = {200, 200};
+static struct mouse_cursor_position { int x, y; } cursor = {200, 200};
 
 struct screen_props { unsigned int width, height; }
 	screen_size = { 1920, 1080 };
+
+// Text functions
+
+void glsl_text_proj_changed(
+    unsigned int const width,
+    unsigned int const height);
+void glsl_text_init();
+void glsl_text_draw();
 
 // ----- Code
 
 void myy_generate_new_state() {}
 
-void myy_display_initialised
-(unsigned int width, unsigned int height) {
-	/* Inverse multiplications tend to be slightly faster than
-		divisions in GLSL. */
-	float
-		half_width  = width/2.0f,
-		half_height = height/2.0f,
-		inv_half_width = 1/half_width,
-		inv_half_height = 1/half_height,
-		recenter_width  = -1,
-		recenter_height = -1;
 
-	/* This expects that the cursor program has been linked prior to this
-	   call ! */
-	GLuint cursor_program = glsl_programs[glsl_cursor_program];
-	glUseProgram(cursor_program);
+void myy_display_initialised(
+	unsigned int const width,
+	unsigned int const height)
+{
+	{
+		/* Inverse multiplications tend to be slightly faster than
+			divisions in GLSL. */
+		float
+			half_width  = width/2.0f,
+			half_height = height/2.0f,
+			inv_half_width = 1/half_width,
+			inv_half_height = 1/half_height,
+			recenter_width  = -1,
+			recenter_height = -1;
 
-	glUniform4f(
-		glsl_cursor_uniforms[glsl_cursor_unif_norm],
-		inv_half_width, inv_half_height,
-		recenter_width, recenter_height
-	);
+		/* This expects that the cursor program has been linked prior to this
+		call ! */
+		GLuint cursor_program = glsl_programs[glsl_cursor_program];
+		glUseProgram(cursor_program);
+
+		glUniform4f(
+			glsl_cursor_uniforms[glsl_cursor_unif_norm],
+			inv_half_width, inv_half_height,
+			recenter_width, recenter_height
+		);
+		glUseProgram(0);
+	}
+	glsl_text_proj_changed(width, height);
+
+
 }
 
 static void init_cursor_program() {
 	/* Link and use our cursor shader */
 	GLuint cursor_program = glhSetupAndUse(
-    "shaders/cursor.vsh", "shaders/cursor.fsh",
-    1, "xyst"
-  );
+		"shaders/cursor.vsh", "shaders/cursor.fsh",
+		1, "xyst"
+	);
 	glsl_programs[glsl_cursor_program] = cursor_program;
 
 	glUseProgram(cursor_program);
+
+	glEnableVertexAttribArray(glsl_cursor_attr_xyst);
 
 	/* Get our uniforms locations as with GLSL 2.x the uniforms locations
 	   cannot be set directly (GLSL 3.1 feature) */
@@ -114,21 +130,30 @@ static void init_cursor_program() {
 	 * s is the normalised coordinate of the texture. 0 : left - 1 : right
 	 * t is the normalised coordinate of the texture. 0 : down - 1 : up
 	 */
-  float left = 0, right = 24, up = 0, down = -24;
+	float left = 0, right = 24, up = 0, down = -24;
 	float cursor_icon[16] = {
-	  /*  x     y  s  t */
-	  right,   up, 1, 1,
-	   left,   up, 0, 1,
-	   left, down, 0, 0,
-	  right, down, 1, 0
+		/*  x     y  s  t */
+		right,   up, 1, 1,
+		left,    up, 0, 1,
+		left,  down, 0, 0,
+		right, down, 1, 0
 	};
 
 	glBufferData(
 		GL_ARRAY_BUFFER, 16*sizeof(float), cursor_icon, GL_STATIC_DRAW
 	);
+
+	glUseProgram(0);
 }
 
-void myy_init_drawing() { init_cursor_program(); }
+struct gl_text_buffer printed_string;
+
+void myy_init_drawing() { 
+	init_cursor_program();
+	glsl_text_init();
+	gl_text_buffer_init(&printed_string);
+	gl_text_buffer_string_at(&printed_string, &roboto, "My hamster knows kung-fu !", 200, 200);
+}
 
 void myy_draw() {
 
@@ -148,23 +173,34 @@ void myy_draw() {
 	GLuint cursor_program = glsl_programs[glsl_cursor_program];
 	glUseProgram(cursor_program);
 	
+	/* Make the cursor texture unit active, and rebind the
+	 * texture just in case.
+	 * Note : Rebinding is not required here, since the cursor
+	 * texture is the only one bound to GL_TEXTURE0+0.
+	 * I'm letting this here, just in case you want to develop
+	 * something more complex.
+	 */
+	glActiveTexture(GL_TEXTURE0+glsl_cursor_texture);
+	glBindTexture(GL_TEXTURE_2D, glsl_textures[glsl_cursor_texture]);
+
 	/* Blending is required for transparency. Else the alpha channel will
 	   be completely ignored and we'll have a black rectangle around the
 	   cursor icon */
 	glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	
 	/* Enable the cursor texture. */
-	glUniform1i(glsl_cursor_uniforms[glsl_cursor_unif_tex],
-              glsl_cursor_texture);
+	glUniform1i(
+		glsl_cursor_uniforms[glsl_cursor_unif_tex],
+        glsl_cursor_texture);
 	/* Set the current cursor position. This is ESSENTIAL */
 
-	glUniform2f(glsl_cursor_uniforms[glsl_cursor_unif_position], 
-							(float) cursor.x,
-              (float) screen_size.height - cursor.y);
+	glUniform2f(
+		glsl_cursor_uniforms[glsl_cursor_unif_position], 
+		(float) cursor.x,
+        (float) screen_size.height - cursor.y);
 
 	/* -Get ready to send data.- */
- 	glEnableVertexAttribArray(glsl_cursor_attr_xyst);
 	/* When calling glVertexAttribPointer, if an ARRAY_BUFFER is bound,
 	   a copy the current GPU buffer adddress is made and glDrawArrays 
 	   will use this address as a base for glVertexAttribPointer
@@ -175,10 +211,12 @@ void myy_draw() {
 	/* The 0 offset is relative to the currently bound buffer's memory.
 		Avoid using NULL instead of 0 as NULL is not assured to be 0. */
 	glVertexAttribPointer(
-    glsl_cursor_attr_xyst, 4, GL_FLOAT, GL_FALSE, 0, (uint8_t *) 0
+		glsl_cursor_attr_xyst, 4, GL_FLOAT, GL_FALSE, 0, (uint8_t *) 0
 	);
 	/* Draw the cursor. This is it for the CPU part ! */
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	glsl_text_draw();
 }
 
 void myy_cleanup_drawing() {

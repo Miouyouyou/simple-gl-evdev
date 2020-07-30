@@ -14,6 +14,7 @@ set(MyyProjectSources
     src/myy.c
     src/helpers/file.c
     src/helpers/gl_loaders.c
+    src/text.c
     )
 
 if (MYY_DEBUG)
