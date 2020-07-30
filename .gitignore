@@ -13,3 +13,5 @@
 .project
 *.user
 CMakeFiles/
+build/
+
