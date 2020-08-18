@@ -7,17 +7,7 @@
 
 #include <stddef.h>
 
-extern GLuint glsl_programs[];
-
-struct {
-	GLuint proj;
-	GLuint z;
-	GLuint u_texture;
-	GLuint u_color;
-	GLuint u_buffer;
-	GLuint u_gamma;
-} glsl_text_uniforms = {0};
-
+#include "text.h"
 
 struct gl_char_point {
 	/* Signed integers, since people might write outside the screen */
@@ -37,6 +27,17 @@ struct gl_char {
 	struct gl_char_point points[6];
 };
 typedef struct gl_char gl_char_t;
+myy_vector_template(gl_char, gl_char_t)
+
+
+struct {
+	GLuint proj;
+	GLuint z;
+	GLuint u_texture;
+	GLuint u_color;
+	GLuint u_buffer;
+	GLuint u_gamma;
+} glsl_text_uniforms = {0};
 
 static void glsl_text_store_to_buffer(
 	struct gl_text_buffer * __restrict const buffer,
