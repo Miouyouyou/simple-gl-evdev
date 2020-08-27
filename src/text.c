@@ -14,14 +14,7 @@ struct gl_char_point {
 	int16_t x, y;
 	float s, t;
 };
-enum gl_char_points {
-	gl_char_tri1_upper_left,
-	gl_char_tri1_bottom_left,
-	gl_char_tri1_bottom_right,
-	gl_char_tri2_upper_right,
-	gl_char_tri2_upper_left,
-	gl_char_tri2_bottom_right
-};
+
 struct gl_char {
 	/* 2 triangles with 3 points each */
 	struct gl_char_point points[6];
@@ -303,4 +296,73 @@ void glsl_text_draw(struct gl_text_buffer * __restrict const buffer)
 	 * on mobile chips, so keep it disabled when possible.
 	 */
 	glDisable(GL_BLEND);
+}
+
+
+gl_simple_text_atlas_t simple_text_atlas;
+struct myy_fh_map_handle simple_text_atlas_file_handle = {0};
+
+bool gl_text_area_simple_init_atlas()
+{
+	struct myy_sampler_properties sampler = {
+		GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE,
+		GL_LINEAR, GL_LINEAR
+	};
+	return myy_packed_fonts_load(
+		"data/fonts_simple.pack",
+		&simple_text_atlas,
+		&simple_text_atlas_file_handle,
+		&sampler);
+}
+
+void gl_text_area_simple_shaders_setup()
+{
+	gl_text_area_simple_use_program();
+	myy_4x4_matrix_t texture_projection;
+	myy_matrix_4x4_ortho_layered_window_coords(
+		&texture_projection,
+		simple_text_atlas.tex_width, simple_text_atlas.tex_height,
+		1);
+	glUseProgram(0);
+}
+
+void gl_text_area_simple_draw(
+	struct gl_text_area const * __restrict const area)
+{
+	gl_text_area_simple_use_program();
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, simple_text_atlas.tex_id);
+	glUniform1i(gl_simple_text_unifs.fonts_texture, 1);
+
+	glUniform3f(gl_simple_text_unifs.rgb,
+		area->color.r, area->color.g, area->color.b);
+	glUniform2f(gl_simple_text_unifs.absolute_offset,
+		area->pos.x, area->pos.y);
+	glUniform2f(gl_simple_text_unifs.relative_text_offset,
+		0, 0);
+
+	gl_text_area_bind_buffers(area);
+	glVertexAttribPointer(
+		gl_simple_text_attr_relative_xy,
+		2, GL_SHORT, GL_FALSE, sizeof(struct myy_gl_char_point),
+		(void *) (offsetof(struct gl_char_point, x)));
+	glVertexAttribPointer(
+		gl_simple_text_attr_in_st,
+		2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(struct myy_gl_char_point),
+		(void *) (offsetof(struct gl_char_point, s)));
+	glDrawArrays(
+		/* How to connect the dots */  GL_TRIANGLES,
+		/* Start from */               0,
+		/* Dots (vertices) to draws */ area->n_points);
+
+	/* Cleaning up */
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glDisable(GL_BLEND);
+	glUseProgram(0);
+
+
 }

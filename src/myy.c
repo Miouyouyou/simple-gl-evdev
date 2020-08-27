@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2017 Miouyouyou <Myy>
+	Copyright (c) 2020 Miouyouyou <Myy>
 
 	Permission is hereby granted, free of charge, to any person obtaining
 	a copy of this software and associated documentation files
@@ -23,6 +23,7 @@
 
 #include <helpers/gl_loaders.h>
 #include <helpers/log.h>
+#include "text.h"
 #include <myy.h>
 
 #include <stddef.h>
@@ -32,14 +33,6 @@
 GLuint glsl_programs[n_glsl_programs] = {0};
 GLuint glsl_textures[n_glsl_textures] = {0};
 GLuint glsl_buffers[n_glsl_buffers]   = {0};
-
-// ------ Cursor variables
-enum glsl_cursor_program_uniforms { 
-	glsl_cursor_unif_tex,
-	glsl_cursor_unif_norm,
-	glsl_cursor_unif_position,
-	n_glsl_cursor_uniforms
-};
 GLuint glsl_cursor_uniforms[n_glsl_cursor_uniforms] = {0};
 
 static struct mouse_cursor_position { int x, y; } cursor = {200, 200};
@@ -50,8 +43,8 @@ struct screen_props { unsigned int width, height; }
 // Text functions
 
 void glsl_text_proj_changed(
-    unsigned int const width,
-    unsigned int const height);
+	unsigned int const width,
+	unsigned int const height);
 void glsl_text_init();
 void glsl_text_draw();
 
@@ -88,6 +81,7 @@ void myy_display_initialised(
 		glUseProgram(0);
 	}
 	glsl_text_proj_changed(width, height);
+	gl_text_area_proj_changed(width, height);
 
 
 }
@@ -116,7 +110,8 @@ static void init_cursor_program() {
 	/* Upload and activate the cursor texture */
 	glhUploadMyyRawTextures(
 		"textures/cursor.raw",
-		n_glsl_textures, glsl_textures
+		n_glsl_textures, glsl_textures,
+		NULL
 	);
 	glhActiveTextures(glsl_textures, 1);
 
@@ -146,16 +141,38 @@ static void init_cursor_program() {
 	glUseProgram(0);
 }
 
-struct gl_text_buffer printed_string;
+gl_text_area_t printed_string;
+
+void myy_glsl_text_area_init()
+{
+	GLuint simple_text_program = glhSetupAndUse(
+		"shaders/text.vert", "shaders/text.frag",
+		2, "relative_xy\0in_st");
+	
+	if (!simple_text_program) {
+		LOG("Could not compile the simple text displayer shader :C\n");
+		exit(1);
+	}
+
+	glsl_programs[glsl_simple_text_program] = simple_text_program;
+	
+	gl_text_area_init(&printed_string);
+	gl_text_area_set_color(&printed_string, 0, 0, 0, 255);
+	gl_text_area_set_global_position(&printed_string, 300, 300);
+	gl_text_area_append_text_format(
+		&printed_string, "Wonderful pointer at : %p\n", &printed_string);
+	gl_text_area_send_to_gpu(&printed_string);
+}
 
 void myy_init_drawing() { 
 	init_cursor_program();
 	glsl_text_init();
-	gl_text_buffer_init(&printed_string);
-	gl_text_buffer_string_at(&printed_string, &roboto, "My hamster knows kung-fu !", 200, 200);
+	myy_glsl_text_area_init();
 }
 
 void myy_draw() {
+
+	static int i = 0;
 
 	/* Clear the screen with a nice blueish color */
 	glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT );
@@ -216,7 +233,11 @@ void myy_draw() {
 	/* Draw the cursor. This is it for the CPU part ! */
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	glsl_text_draw();
+	/* This will move the text horizontally between 200 and 711 px */
+	gl_text_area_set_global_position(&printed_string, 200 + (i & 511), 200);
+	gl_text_area_draw(&printed_string);
+
+	i++;
 }
 
 void myy_cleanup_drawing() {

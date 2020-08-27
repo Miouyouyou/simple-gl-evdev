@@ -26,7 +26,19 @@
 
 #include <stdint.h>
 
-enum glsl_programs { glsl_cursor_program, glsl_text_program, n_glsl_programs };
+enum glsl_programs { 
+	glsl_cursor_program, 
+	glsl_text_program,
+	glsl_simple_text_program,
+	n_glsl_programs
+};
+// ------ Cursor variables
+enum glsl_cursor_program_uniforms { 
+	glsl_cursor_unif_tex,
+	glsl_cursor_unif_norm,
+	glsl_cursor_unif_position,
+	n_glsl_cursor_uniforms
+};
 enum glsl_textures { glsl_cursor_texture, n_glsl_textures };
 enum glsl_buffers  { glsl_cursor_buffer,  n_glsl_buffers  };
 enum glsl_cursor_program_attribs { glsl_cursor_attr_xyst };

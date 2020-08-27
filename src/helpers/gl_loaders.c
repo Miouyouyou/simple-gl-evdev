@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 #include <helpers/gl_loaders.h>
-#include <helpers/file.h>
+#include <helpers/file/file.h>
 #include <helpers/log.h>
 #include <helpers/string.h>
 
@@ -165,49 +165,42 @@ GLuint glhSetupAndUse
 	return p;
 }
 
-/* TODO : This must be customised */
-static void setupTexture()
+void glhUploadMyyRawTextureData(
+	uint8_t const * __restrict const data,
+	GLuint const texture_id,
+	struct myy_sampler_properties const * __restrict const sampler_properties)
 {
-  glGenerateMipmap(GL_TEXTURE_2D);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	myy_raw_tex_header_t const * __restrict const header =
+		(myy_raw_tex_header_t const *) data;
+	uint8_t const * __restrict const content = header->data;
+
+	glBindTexture(header->gl_target, texture_id);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, header->alignment);
+	LOG(
+		"glPixelStorei(%d)\n"
+		"glTexImage2D(%d, %d, %d, %d, %d, %d, %d, %d, %p)\n",
+		header->alignment,
+		header->gl_target, 0, header->gl_format,
+		header->width, header->height, 0,
+		header->gl_format, header->gl_type, content);
+	glTexImage2D(
+		header->gl_target,             /* GL_TEXTURE_2D */     
+		0,                             /* Level */             
+		header->gl_format,             /* Texture format */    
+		header->width, header->height, /* Dimensions */        
+		0,                             /* Unused */            
+		header->gl_format,             /* Output format */     
+		header->gl_type,               /* Texture data type */ 
+		content);
+	glGenerateMipmap(header->gl_target);
+	setupTexture(*sampler_properties);
 }
 
-/**
- *  Create n textures buffers and upload the content of
- *  each \0 separated filename in "textures_names" into these buffers.
- * 
- * The raw files are supposed to follow a specific format, described by
- * the 
- *
- * Example :
- * GLuint textures_id[2];
- * glhUploadMyyRawTextures("tex/first_tex.raw\0tex/second_tex.raw\0", 2,
- *                         textures_id);
- *
- * CAUTION :
- * - This will replace the current active texture binding by a binding
- *   to the last texture uploaded.
- *
- * PARAMS :
- * @param textures_names The filepaths of the textures to upload
- *                       This is implementation specific.
- *                       For example, tex/first_tex.raw will be read
- *                       from the current Asset archive on Android.
- *
- * @param n              The number of textures to upload
- *
- * @param texid          The buffer receiving the generated textures id
- *
- * ADVICE :
- *   Once the textures uploaded, use glhActiveTextures to enable
- * multi-texturing.
- */
-void glhUploadMyyRawTextures
-(char const * __restrict const textures_names, int const n,
- GLuint * __restrict const texid)
+void glhUploadMyyRawTextures(
+	char const * __restrict const textures_names,
+	int const n,
+	GLuint * __restrict const texid,
+	struct myy_sampler_properties const * __restrict sample_props)
 {
 	/* OpenGL 2.x way to load textures is certainly NOT intuitive !
 	 * From what I understand :
@@ -232,30 +225,15 @@ void glhUploadMyyRawTextures
 		   texture unit, specified with glActiveTexture. */
 
 		LOG("Loading texture : %s\n", current_name);
+
+		struct myy_sampler_properties const props =
+			sample_props ? sample_props[i] : myy_sampler_properties_default();
 		struct myy_fh_map_handle mapped_file_infos =
 			fh_MapFileToMemory(current_name);
+
 		if (mapped_file_infos.ok) {
 
-			struct myy_raw_texture_content const * const tex = 
-				(struct myy_raw_texture_content const *)
-				mapped_file_infos.address;
-
-			glBindTexture(tex->myy_target, texid[i]);
-			glPixelStorei(GL_UNPACK_ALIGNMENT, tex->alignment);
-			LOG(
-			  "glPixelStorei(%d)\n"
-			  "glTexImage2D(%d, %d, %d, %d, %d, %d, %d, %d, %p)\n",
-			  tex->alignment,
-			  tex->myy_target, 0, tex->myy_format,
-			  tex->width, tex->height, 0,
-			  tex->myy_format, tex->myy_type, tex->data
-			);
-			glTexImage2D(
-			  tex->myy_target, 0, tex->myy_format,
-			  tex->width, tex->height, 0,
-			  tex->myy_format, tex->myy_type, tex->data
-			);
-			setupTexture();
+			glhUploadMyyRawTextureData(mapped_file_infos.address, texid[i], &props);
 
 			fh_UnmapFileFromMemory(mapped_file_infos);
 			sh_pointToNextString(current_name);
