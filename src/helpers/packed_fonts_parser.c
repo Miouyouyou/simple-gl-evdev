@@ -106,7 +106,6 @@ static bool load_texture_and_get_metadata(
 	struct myy_sampler_properties * __restrict const sampler_props)
 {
 	static char current_pwd[512];
-	bool everything_went_fine = false;
 
 	char const * __restrict const texture_filename =
 		(char const * __restrict)
@@ -146,8 +145,10 @@ static bool load_texture_and_get_metadata(
 
 out:
 	chdir(current_pwd);
+	return true;
+
 didnt_change_directory:
-	return everything_went_fine;
+	return false;
 }
 
 bool myy_packed_fonts_load(
@@ -237,6 +238,7 @@ bool myy_packed_fonts_load(
 	everything_went_fine =
 		load_texture_and_get_metadata(header, infos, sampler_props);
 
+	LOG("Everything went fine when loading the font atlas ? %d\n", everything_went_fine);
 out:
 	//print_stored_codepoints_infos(infos);
 	return everything_went_fine;

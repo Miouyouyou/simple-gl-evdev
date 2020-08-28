@@ -42,12 +42,6 @@ struct screen_props { unsigned int width, height; }
 
 // Text functions
 
-void glsl_text_proj_changed(
-	unsigned int const width,
-	unsigned int const height);
-void glsl_text_init();
-void glsl_text_draw();
-
 // ----- Code
 
 void myy_generate_new_state() {}
@@ -80,7 +74,6 @@ void myy_display_initialised(
 		);
 		glUseProgram(0);
 	}
-	glsl_text_proj_changed(width, height);
 	gl_text_area_proj_changed(width, height);
 
 
@@ -142,31 +135,54 @@ static void init_cursor_program() {
 }
 
 gl_text_area_t printed_string;
+gl_simple_text_atlas_t myy_font_atlas;
+struct myy_fh_map_handle myy_font_atlas_filehandle;
 
 void myy_glsl_text_area_init()
 {
-	GLuint simple_text_program = glhSetupAndUse(
-		"shaders/text.vert", "shaders/text.frag",
-		2, "relative_xy\0in_st");
-	
-	if (!simple_text_program) {
-		LOG("Could not compile the simple text displayer shader :C\n");
-		exit(1);
+	gl_simple_text_atlas_t * __restrict const simple_atlas = &myy_font_atlas;
+	/* FIXME Move this somewhere else.
+	 * However, don't forget that initializing the atlas requires
+	 * sending textures to the GPU using OpenGL, so OpenGL
+	 * must be initialized.
+	 */
+	{
+		bool const atlas_initialized = gl_simple_text_init_atlas(
+			simple_atlas,
+			"data/fonts_test.dat",
+			&myy_font_atlas_filehandle);
+		if (!atlas_initialized) {
+			fh_UnmapFileFromMemory(myy_font_atlas_filehandle);
+			LOG("Could not find data/fonts_test.dat");
+			exit(1);
+		}
+	}
+	{
+		GLuint simple_text_program = glhSetupAndUse(
+			"shaders/text.vert", "shaders/text.frag",
+			2, "relative_xy\0in_st");
+		
+		if (!simple_text_program) {
+			LOG("Could not compile the simple text displayer shader :C\n");
+			exit(1);
+		}
+
+		glsl_programs[glsl_simple_text_program] = simple_text_program;
+
+		gl_simple_text_shaders_setup(simple_atlas);
 	}
 
-	glsl_programs[glsl_simple_text_program] = simple_text_program;
-	
 	gl_text_area_init(&printed_string);
 	gl_text_area_set_color(&printed_string, 0, 0, 0, 255);
 	gl_text_area_set_global_position(&printed_string, 300, 300);
-	gl_text_area_append_text_format(
-		&printed_string, "Wonderful pointer at : %p\n", &printed_string);
-	gl_text_area_send_to_gpu(&printed_string);
+	gl_text_area_append_text(
+		&printed_string, "My cochon d'inde knows kung-fu !");
+
+	gl_text_area_simple_send_to_gpu(&printed_string, simple_atlas);
 }
 
 void myy_init_drawing() { 
 	init_cursor_program();
-	glsl_text_init();
 	myy_glsl_text_area_init();
 }
 
@@ -179,13 +195,6 @@ void myy_draw() {
 	//            RED GREEN  BLUE ALPHA
 	glClearColor(0.2f, 0.5f, 0.7f, 1.0f);
 
-	/** Note : Rebinding the same buffer, re-enabling the same vertex 
-	           attributes and resetting the texture sampler ID every time
-	           is redundant here, as we only have one GLSL program.
-	           OpenGL remembers what was set a few seconds ago. 
-	           Still, ONLY ONE GLSL program is quite rare, though, so 
-	           we'll do it the common way.*/
-	
 	/* Enable the cursor program */
 	GLuint cursor_program = glsl_programs[glsl_cursor_program];
 	glUseProgram(cursor_program);
@@ -219,24 +228,32 @@ void myy_draw() {
 
 	/* -Get ready to send data.- */
 	/* When calling glVertexAttribPointer, if an ARRAY_BUFFER is bound,
-	   a copy the current GPU buffer adddress is made and glDrawArrays 
-	   will use this address as a base for glVertexAttribPointer
-	   offsets.
-	   Else, these "offsets" will be considered to be CPU addresses.
-	   Therefore, IT IS ESSENTIAL TO BIND THE BUFFER NOW ! */
+	   the last argument is an offset, inside this buffer, from which
+	   glDrawArrays should start picking attributes information from.
+	   If no ARRAY_BUFFER is bound, then the latest address is considered
+	   to be a simple CPU memory address (pointer).
+	   Since we sent the attributes data to the GPU beforehand, we bind
+	   the buffer and then pass '0' as the last argument, meaning that
+	   glDrawArrays should start picking vertices information for the
+	   attribute "xyst" from (the bound buffer address + 0).
+	   In this context, 0 is NOT a null pointer. It's an offset.
+	   Don't pass NULL or nullptr, hoping for the same results. */
 	glBindBuffer(GL_ARRAY_BUFFER, glsl_buffers[glsl_cursor_buffer]);
 	/* The 0 offset is relative to the currently bound buffer's memory.
-		Avoid using NULL instead of 0 as NULL is not assured to be 0. */
+	   Avoid using NULL instead of 0 as NULL is not assured to be 0. */
 	glVertexAttribPointer(
-		glsl_cursor_attr_xyst, 4, GL_FLOAT, GL_FALSE, 0, (uint8_t *) 0
-	);
+		glsl_cursor_attr_xyst, 4, GL_FLOAT, GL_FALSE, 0, (uint8_t *) 0);
 	/* Draw the cursor. This is it for the CPU part ! */
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	/* This will move the text horizontally between 200 and 711 px */
-	gl_text_area_set_global_position(&printed_string, 200 + (i & 511), 200);
-	gl_text_area_draw(&printed_string);
+	gl_text_area_simple_draw_prepare_for_batch(&printed_string, &myy_font_atlas);
 
+	/* Simple moving text effects */
+	/* This will move the text horizontally between 200 and 711 px */
+	//gl_text_area_set_global_position(&printed_string, 200 + (i & 511), 200);
+	gl_text_area_simple_draw(&printed_string);
+
+	gl_text_area_simple_draw_cleanup_after_batch(&printed_string);
 	i++;
 }
 
@@ -291,4 +308,5 @@ void myy_abs_mouse_move(int x, int y) {
 void myy_mouse_action(enum mouse_action_type action, int value) {
   // Doing a printf here would be of no use as we cannot see the
   // terminal until the application shutdown
+	exit(1);
 }

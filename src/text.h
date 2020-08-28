@@ -2,6 +2,7 @@
 #define MYY_TEXT_H 1
 
 #include <stdint.h>
+#include <stdarg.h>
 
 
 #include <myy.h>
@@ -135,8 +136,10 @@ static inline void glsl_text_use_program() {
 }
 
 __attribute__((unused))
-static inline void gl_text_area_simple_use_program() {
-	glUseProgram(glsl_programs[glsl_simple_text_program]);
+static inline GLuint gl_text_area_simple_use_program() {
+	GLuint const program_id = glsl_programs[glsl_simple_text_program];
+	glUseProgram(program_id);
+	return program_id;
 }
 
 __attribute__((unused))
@@ -269,6 +272,10 @@ static myy_glyph_data_t const * myy_atlas_get_glyph_data(
 	uint32_t i = 0;
 	while (i < n_codepoints && codepoints[i] != codepoint) i++;
 
+	/* glyphs_data+0 contain the placeholder glyph data used
+	 * for missing glyphs.
+	 * If i == n_codepoints, it means we never found the codepoint.
+	 */
 	if (i == n_codepoints) i = 0;
 
 	return glyphs_data+i;
@@ -284,8 +291,9 @@ static inline bool gl_text_area_simple_save_to_gpu(
 	 * it soon enough.
 	 */
 	size_t const string_length = myy_vector_u8_length(&area->string);
+	myy_vector_mgl_char * __restrict const geometry_cpu_buffer = &area->cpu_buffer;
 	bool const enough_memory = myy_vector_mgl_char_ensure_enough_space_for(
-		&area->cpu_buffer,
+		geometry_cpu_buffer,
 		string_length);
 
 	/* TODO Treat each pack independently */
@@ -293,12 +301,15 @@ static inline bool gl_text_area_simple_save_to_gpu(
 		int16_t const start_x = area->pos.x;
 		int16_t write_x = start_x;
 		int16_t write_y = area->pos.y;
+		size_t const expected_points =
+			string_length * 6 /* points per character quad (2 triangles) */;
 
 		/* Consider all the characters written */
-		myy_vector_mgl_char_force_length_to(&area->cpu_buffer, string_length);
+		myy_vector_mgl_char_force_length_to(
+			geometry_cpu_buffer, string_length);
 
 		myy_gl_char_t * __restrict current_gl_char =
-			myy_vector_mgl_char_data(&area->cpu_buffer);
+			myy_vector_mgl_char_data(geometry_cpu_buffer);
 		uint8_t const * __restrict string =
 			myy_vector_u8_data(&area->string);
 		uint8_t const * __restrict const string_end =
@@ -322,6 +333,17 @@ static inline bool gl_text_area_simple_save_to_gpu(
 				write_y += 16 /* pixels. FIXME : Make this customisable */;
 			}
 		}
+
+		LOG("Sending %zu chars to the GPU.\n", expected_points);
+		myy_double_buffers_bind_next(&area->gl_buffers);
+		myy_double_buffers_store(&area->gl_buffers,
+			myy_vector_mgl_char_data(geometry_cpu_buffer),
+			myy_vector_mgl_char_allocated_used(geometry_cpu_buffer));
+		area->n_points = expected_points;
+
+	}
+	else {
+		LOG("Not enough memory for %zu chars !?\n", string_length);
 	}
 
 	return enough_memory;
@@ -370,10 +392,11 @@ static inline void gl_text_area_append_text_format(
 }
 
 __attribute__((unused))
-static inline void gl_text_area_send_to_gpu(
-	struct gl_text_area * __restrict const area)
+static inline void gl_text_area_simple_send_to_gpu(
+	struct gl_text_area * __restrict const area,
+	gl_simple_text_atlas_t const * __restrict const atlas)
 {
-	gl_text_area_simple_save_to_gpu(area);
+	gl_text_area_simple_save_to_gpu(area, atlas);
 }
 
 __attribute__((unused))
@@ -396,11 +419,98 @@ static inline void gl_text_area_proj_changed(
 	glUseProgram(0);
 }
 
-void gl_text_area_draw(
-	struct gl_text_area const * __restrict const area);
+__attribute__((unused))
+static void gl_simple_text_shaders_setup(
+	gl_simple_text_atlas_t const * __restrict const atlas)
+{
+	GLuint program = gl_text_area_simple_use_program();
+	gl_simple_text_unifs.projection =
+		glGetUniformLocation(program, "projection");
+	gl_simple_text_unifs.texture_projection =
+		glGetUniformLocation(program, "texture_projection");
+	gl_simple_text_unifs.relative_text_offset =
+		glGetUniformLocation(program, "relative_text_offset");
+	gl_simple_text_unifs.absolute_offset =
+		glGetUniformLocation(program, "absolute_offset");
+	gl_simple_text_unifs.fonts_texture =
+		glGetUniformLocation(program, "fonts_texture");
+	gl_simple_text_unifs.rgb =
+		glGetUniformLocation(program, "rgb");
+	glUniform2f(
+		gl_simple_text_unifs.texture_projection,
+		1.0f/atlas->tex_width,
+		1.0f/atlas->tex_height);
+	glUseProgram(0);
+}
 
 
-void gl_text_area_simple_shaders_setup();
+
+__attribute__((unused))
+static inline bool gl_simple_text_init_atlas(
+	gl_simple_text_atlas_t * __restrict const atlas_to_init,
+	char const * __restrict const font_pack_filepath,
+	struct myy_fh_map_handle * __restrict const initialized_atlas_filehandle)
+{
+	struct myy_sampler_properties sampler = {
+		GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE,
+		GL_LINEAR, GL_LINEAR
+	};
+	return myy_packed_fonts_load(
+		font_pack_filepath,
+		atlas_to_init,
+		initialized_atlas_filehandle,
+		&sampler);
+}
+
+__attribute__((unused))
+static void gl_text_area_simple_draw_prepare_for_batch(
+	struct gl_text_area const * __restrict const area,
+	gl_simple_text_atlas_t const * __restrict const atlas)
+{
+	gl_text_area_simple_use_program();
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, atlas->tex_id);
+	glUniform1i(gl_simple_text_unifs.fonts_texture, 1);
+}
+
+__attribute__((unused))
+static void gl_text_area_simple_draw(
+	struct gl_text_area const * __restrict const area)
+{
+
+	glUniform3f(gl_simple_text_unifs.rgb,
+		area->color.r, area->color.g, area->color.b);
+	glUniform4f(gl_simple_text_unifs.absolute_offset,
+		area->pos.x, area->pos.y, 1.0f, 0.0f);
+	glUniform4f(gl_simple_text_unifs.relative_text_offset,
+		0.0f, 0.0f, 0.0f, 0.0f);
+
+	gl_text_area_bind_buffers(area);
+	glVertexAttribPointer(
+		gl_simple_text_attr_relative_xy,
+		2, GL_SHORT, GL_FALSE, sizeof(struct myy_gl_char_point),
+		(void *) (offsetof(struct myy_gl_char_point, x)));
+	glVertexAttribPointer(
+		gl_simple_text_attr_in_st,
+		2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(struct myy_gl_char_point),
+		(void *) (offsetof(struct myy_gl_char_point, s)));
+	glDrawArrays(
+		/* How to connect the dots */  GL_TRIANGLES,
+		/* Start from */               0,
+		/* Dots (vertices) to draws */ area->n_points);
+}
+
+__attribute__((unused))
+static void gl_text_area_simple_draw_cleanup_after_batch(
+	struct gl_text_area const * __restrict const area)
+{
+	/* Cleaning up */
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glDisable(GL_BLEND);
+	glUseProgram(0);
+}
 
 void glsl_text_draw(struct gl_text_area * __restrict const area);
 

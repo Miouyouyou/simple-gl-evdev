@@ -12,9 +12,11 @@ set(MyyProjectSources
     src/drm.c
     src/evdev.c
     src/myy.c
-    src/helpers/file.c
+    src/helpers/file/file.c
     src/helpers/gl_loaders.c
     src/text.c
+    src/helpers/packed_fonts_parser.c
+    src/helpers/myy_vector/vector.c
     )
 
 if (MYY_DEBUG)

@@ -1,8 +1,9 @@
 #ifndef MYY_SRC_HELPERS_OPENGL_LOADERS
 #define MYY_SRC_HELPERS_OPENGL_LOADERS 1
 
-#include <current/opengl.h>
 #include <stdint.h>
+
+#include <current/opengl.h>
 
 /**
  * Compile a simple program, set the provided attributes locations

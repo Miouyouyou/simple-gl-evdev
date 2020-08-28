@@ -37,4 +37,5 @@ static inline void myy_matrix_4x4_ortho_layered_window_coords(
 	*matrix = ortho_matrix;
 }
 
+
 #endif
