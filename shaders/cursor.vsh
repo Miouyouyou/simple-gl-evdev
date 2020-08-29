@@ -52,6 +52,6 @@ void main() {
   */
   vec2 normalised_pos = (xyst.xy + cursor_pos) * px_to_norm.xy + px_to_norm.zw;
   /*                      xy          z    w   */
-  gl_Position = vec4(normalised_pos, 0.5, 1.0);
+  gl_Position = vec4(normalised_pos, 0.0, 1.0);
   out_st = xyst.zw;
 }

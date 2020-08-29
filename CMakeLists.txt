@@ -23,7 +23,7 @@ if (MYY_DEBUG)
 	add_definitions(-DDEBUG)
 endif (MYY_DEBUG)
 
-file(COPY shaders textures DESTINATION .)
+file(COPY shaders textures data DESTINATION .)
 
 find_package(PkgConfig REQUIRED)
 pkg_search_module(DRM REQUIRED libdrm)
@@ -41,5 +41,4 @@ target_link_libraries(Program
                       ${DRM_LIBRARIES}
                       ${GBM_LIBRARIES}
                       ${EVDEV_LIBRARIES})
-
 

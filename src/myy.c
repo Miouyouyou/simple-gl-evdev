@@ -184,21 +184,86 @@ void myy_glsl_text_area_init()
 void myy_init_drawing() { 
 	init_cursor_program();
 	myy_glsl_text_area_init();
+
+	/* Depth testing is enabled, in order to be able to setup a 'depth'
+	 * to our cursor (inside the shader) and have it displayed on top of
+	 * other objects, like a moving text for example */
+	glEnable(GL_DEPTH_TEST);
 }
 
 void myy_draw() {
 
+	/* This is a semi-global variable.
+	 * This variable is initialized ONCE, then it keeps its
+	 * value between invocations of the same function.
+	 * This is why the increment at the bottom of the function
+	 * works.
+	 */
 	static int i = 0;
 
+	/* Cursor drawing */
 	/* Clear the screen with a nice blueish color */
 	glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT );
 	//            RED GREEN  BLUE ALPHA
 	glClearColor(0.2f, 0.5f, 0.7f, 1.0f);
 
+	/* When displaying transparent objects, the order is KEY.
+	 * Remember that 'transparency' is a fallacy in 3D rendering.
+	 * The foreground pixel color is just mixed with (or copied from)
+	 * the current background pixel color to give that "transparent"
+	 * illusion.
+	 * So we NEED to draw back to front, in order to ensure that each
+	 * front object 'transparent' pixel takes into account the background
+	 * objects pixel colors, else things will start to look VERY ugly.
+	 * Note that drawing back to front KILLS a lot of performance and
+	 * optimization on embedded devices. That's why you might want to
+	 * look for more "DRM" ways of display cursors on the screen, with
+	 * compositing and such, in order to get real performances.
+	 */
+
+	{
+		gl_text_area_simple_draw_prepare_for_batch(
+			&printed_string, &myy_font_atlas);
+
+		/* Simple moving text effects */
+		/* This will move the text horizontally between 200 and 711 px 
+		 * 
+		 * Boolean magic :
+		 * We take the current frame number. If it's between 0 and 511,
+		 * ((i >> 9) & 1) ^ 1 will take the 9th bit.
+		 * The bit will be 0 if 'i' is below 512 * an odd number
+		 * The bit will be 1 if 'i' is below 512 * an even number
+		 * 
+		 * ^ 1 will invert this bit (so 0 will become 1 and 1 will become
+		 * 0)
+		 * 
+		 * That way, we move the text 512 pixels to the right, then
+		 * 512 pixels to the left...
+		 */
+		unsigned int const move_forward = ((i >> 9) & 1) ^1;
+		if (move_forward) {
+			gl_text_area_set_global_position(
+				&printed_string, 200 + (i & 511), 200);
+		}
+		else {
+			gl_text_area_set_global_position(
+				&printed_string, 711 - (i & 511), 200);
+		}
+		gl_text_area_simple_draw(&printed_string);
+
+		gl_text_area_simple_draw_cleanup_after_batch(&printed_string);
+	}
+
 	/* Enable the cursor program */
 	GLuint cursor_program = glsl_programs[glsl_cursor_program];
 	glUseProgram(cursor_program);
-	
+
+	/* Blending is required for transparency. Else the alpha channel will
+	   be completely ignored and we'll have a black rectangle around the
+	   cursor icon */
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	/* Make the cursor texture unit active, and rebind the
 	 * texture just in case.
 	 * Note : Rebinding is not required here, since the cursor
@@ -209,12 +274,6 @@ void myy_draw() {
 	glActiveTexture(GL_TEXTURE0+glsl_cursor_texture);
 	glBindTexture(GL_TEXTURE_2D, glsl_textures[glsl_cursor_texture]);
 
-	/* Blending is required for transparency. Else the alpha channel will
-	   be completely ignored and we'll have a black rectangle around the
-	   cursor icon */
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	
 	/* Enable the cursor texture. */
 	glUniform1i(
 		glsl_cursor_uniforms[glsl_cursor_unif_tex],
@@ -246,18 +305,7 @@ void myy_draw() {
 	/* Draw the cursor. This is it for the CPU part ! */
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	gl_text_area_simple_draw_prepare_for_batch(&printed_string, &myy_font_atlas);
-
-	/* Simple moving text effects */
-	/* This will move the text horizontally between 200 and 711 px */
-	unsigned int const move_forward = ((i >> 9) & 1) ^1;
-	if (move_forward)
-		gl_text_area_set_global_position(&printed_string, 200 + (i & 511), 200);
-	else
-		gl_text_area_set_global_position(&printed_string, 711 - (i & 511), 200);
-	gl_text_area_simple_draw(&printed_string);
-
-	gl_text_area_simple_draw_cleanup_after_batch(&printed_string);
+	// Increment the frame number
 	i++;
 }
 
