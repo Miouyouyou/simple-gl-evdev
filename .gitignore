@@ -15,3 +15,6 @@
 CMakeFiles/
 build/
 
+*.kdev4
+*.vscode
+

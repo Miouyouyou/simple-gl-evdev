@@ -199,16 +199,18 @@ static void glfont_glyph_to_gl_char(
 	myy_gl_char_t * __restrict const glc,
 	int16_t write_pos_x, int16_t write_pos_y)
 {
-	float const tex_left   = glyph->tex_left;
-	float const tex_right  = glyph->tex_right;
-	float const tex_bottom = glyph->tex_bottom;
-	float const tex_top    = glyph->tex_top;
+	uint16_t const tex_left   = glyph->tex_left;
+	uint16_t const tex_right  = glyph->tex_right;
+	/* Why the inversion ? */
+	uint16_t const tex_top = glyph->tex_bottom;
+	uint16_t const tex_bottom    = glyph->tex_top;
 
 	int16_t const left     = write_pos_x + glyph->offset_x_px;
 	int16_t const right    = write_pos_x + glyph->offset_x_px + glyph->width_px;
-	int16_t const top      = write_pos_y + (-glyph->height_px + glyph->offset_y_px);
-	int16_t const bottom   = write_pos_y + glyph->offset_y_px;
+	int16_t const bottom   = write_pos_y - glyph->offset_y_px;
+	int16_t const top      = write_pos_y - glyph->offset_y_px - glyph->height_px;
 
+	LOG("Tex : %u <-> %u __ %u | %u\n", tex_left, tex_right, tex_bottom, tex_top);
 	store_point(
 		glc->points[gl_char_tri1_upper_left],
 		{ left, top, tex_left, tex_top })
@@ -227,35 +229,6 @@ static void glfont_glyph_to_gl_char(
 	store_point(
 		glc->points[gl_char_tri2_bottom_right],
 		{ right, bottom, tex_right, tex_bottom })
-	/*glc->points[gl_char_tri1_upper_left].x = left;
-	glc->points[gl_char_tri1_upper_left].y = top;
-	glc->points[gl_char_tri1_upper_left].s = tex_left;
-	glc->points[gl_char_tri1_upper_left].t = tex_top;
-
-	glc->points[gl_char_tri1_bottom_left].x = left;
-	glc->points[gl_char_tri1_bottom_left].y = bottom;
-	glc->points[gl_char_tri1_bottom_left].s = tex_left;
-	glc->points[gl_char_tri1_bottom_left].t = tex_bottom;
-
-	glc->points[gl_char_tri1_bottom_right].x = right;
-	glc->points[gl_char_tri1_bottom_right].y = bottom;
-	glc->points[gl_char_tri1_bottom_right].s = tex_right;
-	glc->points[gl_char_tri1_bottom_right].t = tex_bottom;
-
-	glc->points[gl_char_tri2_upper_right].x = right;
-	glc->points[gl_char_tri2_upper_right].y = top;
-	glc->points[gl_char_tri2_upper_right].s = tex_right;
-	glc->points[gl_char_tri2_upper_right].t = tex_top;
-
-	glc->points[gl_char_tri2_upper_left].x = left;
-	glc->points[gl_char_tri2_upper_left].y = top;
-	glc->points[gl_char_tri2_upper_left].s = tex_left;
-	glc->points[gl_char_tri2_upper_left].t = tex_top;
-
-	glc->points[gl_char_tri2_bottom_right].x = right;
-	glc->points[gl_char_tri2_bottom_right].y = bottom;
-	glc->points[gl_char_tri2_bottom_right].s = tex_right;
-	glc->points[gl_char_tri2_bottom_right].t = tex_bottom;*/
 
 }
 
@@ -330,12 +303,11 @@ static inline bool gl_text_area_simple_save_to_gpu(
 			}
 			else {
 				write_x = start_x;
-				write_y += 16 /* pixels. FIXME : Make this customisable */;
+				write_y += atlas->min_bearing_y; /* Size of a line */
 			}
 		}
 
 		LOG("Sending %zu chars to the GPU.\n", expected_points);
-		myy_double_buffers_bind_next(&area->gl_buffers);
 		myy_double_buffers_store(&area->gl_buffers,
 			myy_vector_mgl_char_data(geometry_cpu_buffer),
 			myy_vector_mgl_char_allocated_used(geometry_cpu_buffer));
@@ -376,19 +348,25 @@ static inline void gl_text_area_append_text_format(
 	
 {
 	va_list args;
-	va_start(args, utf8_format);
 
-	int n_chars = vsnprintf(NULL, 0, utf8_format, args);
+	va_start(args, utf8_format);
+	int const n_chars = vsnprintf(NULL, 0, utf8_format, args);
+	va_end(args);
 
 	myy_vector_u8 * __restrict const string = &area->string;
-	myy_vector_u8_ensure_enough_space_for(string, n_chars);
-
+	size_t const current_string_length = myy_vector_u8_length(string);
 	uint8_t * __restrict const current_string_end =
 		myy_vector_u8_tail_ptr(string);
 
-	vsnprintf((char *) current_string_end, n_chars, utf8_format, args);
 
+	myy_vector_u8_ensure_enough_space_for(string, n_chars);
+
+	va_start(args, utf8_format);	
+	vsnprintf((char *) current_string_end, n_chars, utf8_format, args);
 	va_end(args);
+
+	myy_vector_u8_force_length_to(string, current_string_length + n_chars);
+
 }
 
 __attribute__((unused))
@@ -440,6 +418,8 @@ static void gl_simple_text_shaders_setup(
 		gl_simple_text_unifs.texture_projection,
 		1.0f/atlas->tex_width,
 		1.0f/atlas->tex_height);
+	glEnableVertexAttribArray(gl_simple_text_attr_relative_xy);
+	glEnableVertexAttribArray(gl_simple_text_attr_in_st);
 	glUseProgram(0);
 }
 

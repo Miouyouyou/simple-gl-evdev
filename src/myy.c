@@ -149,7 +149,7 @@ void myy_glsl_text_area_init()
 	{
 		bool const atlas_initialized = gl_simple_text_init_atlas(
 			simple_atlas,
-			"data/fonts_test.dat",
+			"data/font_pack_meta.dat",
 			&myy_font_atlas_filehandle);
 		if (!atlas_initialized) {
 			fh_UnmapFileFromMemory(myy_font_atlas_filehandle);
@@ -175,8 +175,8 @@ void myy_glsl_text_area_init()
 	gl_text_area_init(&printed_string);
 	gl_text_area_set_color(&printed_string, 0, 0, 0, 255);
 	gl_text_area_set_global_position(&printed_string, 300, 300);
-	gl_text_area_append_text(
-		&printed_string, "My cochon d'inde knows kung-fu !");
+	gl_text_area_append_text_format(
+		&printed_string, "Wonderful pointer : %p\nIsn't it ?", &printed_string);
 
 	gl_text_area_simple_send_to_gpu(&printed_string, simple_atlas);
 }
@@ -218,13 +218,13 @@ void myy_draw() {
 	/* Enable the cursor texture. */
 	glUniform1i(
 		glsl_cursor_uniforms[glsl_cursor_unif_tex],
-        glsl_cursor_texture);
+		glsl_cursor_texture);
 	/* Set the current cursor position. This is ESSENTIAL */
 
 	glUniform2f(
 		glsl_cursor_uniforms[glsl_cursor_unif_position], 
 		(float) cursor.x,
-        (float) screen_size.height - cursor.y);
+		(float) screen_size.height - cursor.y);
 
 	/* -Get ready to send data.- */
 	/* When calling glVertexAttribPointer, if an ARRAY_BUFFER is bound,
@@ -250,7 +250,11 @@ void myy_draw() {
 
 	/* Simple moving text effects */
 	/* This will move the text horizontally between 200 and 711 px */
-	//gl_text_area_set_global_position(&printed_string, 200 + (i & 511), 200);
+	unsigned int const move_forward = ((i >> 9) & 1) ^1;
+	if (move_forward)
+		gl_text_area_set_global_position(&printed_string, 200 + (i & 511), 200);
+	else
+		gl_text_area_set_global_position(&printed_string, 711 - (i & 511), 200);
 	gl_text_area_simple_draw(&printed_string);
 
 	gl_text_area_simple_draw_cleanup_after_batch(&printed_string);
@@ -258,9 +262,9 @@ void myy_draw() {
 }
 
 void myy_cleanup_drawing() {
-  glFinish();
-  glDeleteProgram(glsl_programs[glsl_cursor_program]);
-  glDeleteBuffers(n_glsl_buffers, glsl_buffers);
+	glFinish();
+	glDeleteProgram(glsl_programs[glsl_cursor_program]);
+	glDeleteBuffers(n_glsl_buffers, glsl_buffers);
 }
 
 /* Evdev will send ABSOLUTE movement offsets like -4, +2, +9, -1
