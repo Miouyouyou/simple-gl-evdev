@@ -201,7 +201,6 @@ void myy_draw() {
 	 */
 	static int i = 0;
 
-	/* Cursor drawing */
 	/* Clear the screen with a nice blueish color */
 	glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT );
 	//            RED GREEN  BLUE ALPHA
@@ -229,10 +228,11 @@ void myy_draw() {
 		/* This will move the text horizontally between 200 and 711 px 
 		 * 
 		 * Boolean magic :
-		 * We take the current frame number. If it's between 0 and 511,
-		 * ((i >> 9) & 1) ^ 1 will take the 9th bit.
+		 * ((i >> 9) & 1) will take the value of the 9th bit only.
 		 * The bit will be 0 if 'i' is below 512 * an odd number
+		 * For example : 0-511, 1024-1535, ...
 		 * The bit will be 1 if 'i' is below 512 * an even number
+		 * For example : 512-1023, 1536-2047, ...
 		 * 
 		 * ^ 1 will invert this bit (so 0 will become 1 and 1 will become
 		 * 0)
@@ -254,6 +254,7 @@ void myy_draw() {
 		gl_text_area_simple_draw_cleanup_after_batch(&printed_string);
 	}
 
+	/* Cursor drawing */
 	/* Enable the cursor program */
 	GLuint cursor_program = glsl_programs[glsl_cursor_program];
 	glUseProgram(cursor_program);
